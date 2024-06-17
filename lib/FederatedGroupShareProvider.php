@@ -39,6 +39,7 @@
 
 namespace OCA\VO_Federation;
 
+use Exception;
 use OC\Share20\Exception\InvalidShare;
 use OC\Share20\Share;
 use OCA\VO_Federation\AppInfo\Application;
@@ -228,13 +229,14 @@ class FederatedGroupShareProvider implements IShareProvider {
 			$remoteShare = null;
 		}
 
+		$share->setShareType(IShare::TYPE_GROUP);
+		$localGroupShare = $this->shareManager->createShare($share);
+
 		if ($remoteShare) {
 			$ownerCloudId = $this->cloudIdManager->getCloudId($remoteShare['owner'], $remoteShare['remote']);
 			$share->setShareOwner($ownerCloudId->getId());
-		}
+		}		
 
-		$share->setShareType(IShare::TYPE_GROUP);
-		$localGroupShare = $this->shareManager->createShare($share);
 		$share->setShareType($shareType);
 		$shareId = $this->createFederatedShare($share, (int) $localGroupShare->getId());
 
@@ -459,7 +461,9 @@ class FederatedGroupShareProvider implements IShareProvider {
 				// Already added by other reshare instance
 				return;
 			}
-			throw $ex;
+			//throw $ex;
+		} catch (Exception $ex) {
+			// Ingore constraints
 		}
 	}
 
@@ -575,9 +579,11 @@ class FederatedGroupShareProvider implements IShareProvider {
 		foreach ($voShares as $voShare) {
 			if ($this->userManager->userExists($share->getShareOwner())) {
 				$voShare->setNotification('unshare');
-				$voShare->setTry(0);
-				$this->voShareMapper->update($voShare);
+			} else {
+				$voShare->setNotification('unshare_reshare');
 			}
+			$voShare->setTry(0);
+			$this->voShareMapper->update($voShare);
 		}
 		$this->removeShareFromTable($share);
 	}
@@ -640,9 +646,9 @@ class FederatedGroupShareProvider implements IShareProvider {
 			->andWhere($qb->expr()->neq('share_type', $qb->createNamedParameter(IShare::TYPE_CIRCLE)));
 		$qb->execute();
 
-		$qb->delete('federated_reshares')
-			->where($qb->expr()->eq('share_id', $qb->createNamedParameter($shareId)));
-		$qb->execute();
+		// $qb->delete('federated_reshares')
+		// 	->where($qb->expr()->eq('share_id', $qb->createNamedParameter($shareId)));
+		// $qb->execute();
 	}
 
 	/**
